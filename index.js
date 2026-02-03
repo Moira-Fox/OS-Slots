@@ -30,6 +30,10 @@ function waitForInput(ws){
 		{	
 			if(resp.toLowerCase()==="go"||resp.length==0){
 				WS.send('go');
+			}else if(resp.toLowerCase()==="goalie"){
+				WS.send('goalie');
+			}else if(resp.toLowerCase()==="forward"){
+				WS.send('forward');
 			}
 		}else{
 			console.log("The browser source is not connected.")
@@ -37,6 +41,10 @@ function waitForInput(ws){
 		waitForInput()
 	});
 }
+ var exec = require('child_process').exec;
+ exec('http-server', function(error, stdout, stderr){
+   console.log(stdout);
+ });
 console.log("You must reload the browser source.")
 console.log("press enter to re-run the slots.")
 waitForInput();

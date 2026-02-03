@@ -1,0 +1,444 @@
+<html>
+<head>
+<title>OS Slots</title>
+<style>
+	:root{
+		--color-main:#DF1377;
+		--color-accent1: #2Fc3eD;
+		--color-accent1-dark: #0Fa3cD;
+		--color-accent2: #444;
+		--color-accent3: #51FFB8;
+		--button-width:128px;
+		--scroller-width:200px;
+	}
+	html{
+		--scroll-y-one:0;
+		--scroll-y-two:0;
+		--scroll-y-three:0;
+	}
+	body{display:flex;justify-content:center;flex-direction:column;align-items:center;background:url('/assets/bg.png');height:100%;}
+	main{display:grid;grid-template-columns:repeat(3,max-content);background-color:var(--color-main);width:fit-content;border:7px solid silver;border-radius:12px;filter:drop-shadow(3px 3px 3px #333);}
+	main>div{
+		width:300px;
+		height:500px;
+		background-image:linear-gradient(to bottom,transparent,#2228 20%, transparent);
+		box-sizing:border-box;
+		justify-content:center;
+		display:flex;
+	}
+	main>div:not(last-child){
+		border-right:solid 2px silver; 
+	}
+	.scroller{
+		width:var(--scroller-width);
+		height:100%;
+		background-size:100% auto;
+		background-repeat:repeat-y;
+		background-position:50% 0;
+		mask:linear-gradient(to bottom, black, white 35%, white 65%, black);
+		mask-mode:luminance;
+		filter:drop-shadow(4px 4px 4px #222a);
+	}
+	#gear>.scroller{
+		background-image:url(/assets/gear/goaligearscroll.png);
+		background-position:50% var(--scroll-y-two);
+	}
+	#awake>.scroller{
+		background-image:url(/assets/gear/awakescroll.png);
+		background-position:50% var(--scroll-y-three);
+	}
+	#char>.scroller{
+		background-image:url(/assets/gear/charscroll.png);
+		background-position:50% var(--scroll-y-one);
+	}
+	#opts{
+		width:fit-content;
+		margin-bottom:8px;
+		
+	}
+	html[data-pos='forward'] #gear>.scroller{
+		background-image:url(/assets/gear/forwardgearscroll.png?v=0);
+	}
+	
+	html[data-stream="1"] body{
+		background:transparent;
+	}
+	
+	html[data-stream="1"] #opts{
+		display:none;
+	}
+</style>
+</head>
+<body>
+<header id="opts">
+<select oninput="changeGearLoadoutElem(this)">
+	<option value="goalie">Goalie</option>
+	<option value="forward">Forward</option>
+</select>
+<button onclick="GO()">GO</button>
+</header>
+<main>
+	<div id="char">
+		<div class="scroller">
+		</div>
+	</div>
+	<div id="gear">
+		<div class="scroller">
+		</div>
+	</div>
+	<div id="awake">
+		<div class="scroller">
+		</div>
+	</div>
+</main>
+<script>
+
+let scrollLeft=true;
+let scrollLeftSlowing=true;
+let scrollCenter=true;
+let scrollCenterSlowing=true;
+let scrollRight=true;
+let scrollRightSlowing=true;
+let scrollPercents = [0,0,0]
+let scrollMax = [22*200,4*200,2*200]
+let decay = 0.02;
+let tickCounter=[0,0,0];
+const speed = 5;//px
+
+let speeds = [speed*1.6,speed,speed*1.3];//px
+
+let isGoalie = true
+function changeGearLoadoutElem(parent)
+{
+	changeGearLoadout(parent.value);
+}
+function changeGearLoadout(val)
+{
+	console.log(val)
+	const opts = {
+		"forward":{
+			"scrollMax":[22*200,5*200,2*200],
+			"speeds":[speed*1.6,speed*1.25,speed*1.3]
+		},
+		"goalie":{
+			"scrollMax":[22*200,4*200,2*200],
+			"speeds":[speed*1.6,speed,speed*1.3]
+		}
+	}
+	html.dataset.pos = val;
+	html.style.setProperty("--scroller-width",`200px`);
+	
+	scrollMax = opts[val]["scrollMax"];
+	speeds = opts[val]["speeds"];
+	switch(val){
+		case "forward":
+			isGoalie = false
+			break;
+		default:
+			isGoalie = true
+			break;
+	}
+}
+
+function handleMessage(ev, ws)
+{
+	var data = ev.data;
+	
+	if(data=="go")
+	{
+		GO();
+	}else if(data == "goalie" || data == "forward")
+	{
+		changeGearLoadout(data)
+	}
+}
+
+const html = document.getElementsByTagName("html")[0];
+let ws = null;
+const searchParams = new URLSearchParams(window.location.search);
+if(searchParams.has("stream")){
+	html.dataset.stream="1"
+	ws = new WebSocket("ws://localhost:8082");//("wss://os-drafter-cd0544045aee.herokuapp.com");//");
+	ws.awaitconnection = true;
+	ws.addEventListener("error", (event) => {
+		console.log(event);
+	});
+	ws.addEventListener("close",()=>{console.log("closed");})
+	ws.addEventListener("open",()=>{
+		console.log("connected");
+		ws.awaitconnection=false;
+		ws.addEventListener("message",function (event) {
+			ws.send(JSON.stringify("okay"));
+			handleMessage(event,ws) 
+		});
+	})
+}
+if(searchParams.has("forward")){
+	changeGearLoadout("forward");
+}
+const CHAR_INDEX = 0;
+const GEAR_INDEX = 1;
+const AWAKE_INDEX = 2;
+function doReset()
+{
+	GOButton.removeAttribute("disabled");
+	tickCounter = [0,0,0]
+}
+
+function doForwardGearSlow()
+{
+	const INDEX = GEAR_INDEX;
+	tickCounter[INDEX]+=1;
+		
+	let newSpeed = speed - decay*tickCounter[INDEX];
+	if(newSpeed<1){
+		newSpeed=1;
+		const SCROLL=(scrollPercents[INDEX]+newSpeed)%scrollMax[INDEX];
+		
+		// compute nearest;
+		let interval = scrollMax[INDEX]/10;
+		if(SCROLL<1.5*interval){
+			// first guy idk
+			if(SCROLL > 1.5*interval-newSpeed - 1){
+				scrollPercents[INDEX] = 1.5*interval+newSpeed;
+				scrollCenterSlowing = false;
+			}else{
+				scrollPercents[INDEX] = SCROLL;
+			}
+		}else if(SCROLL<3.5*interval){
+			// second guy idk
+			if(SCROLL > 3.5*interval-newSpeed - 1){
+				scrollPercents[INDEX] = 3.5*interval+newSpeed;
+				scrollCenterSlowing = false;
+				
+			}else{
+				scrollPercents[INDEX] = SCROLL;
+			}
+		}else if(SCROLL<5.5*interval){
+			// third guy idk
+			if(SCROLL > 5.5*interval-newSpeed - 1){
+				scrollPercents[INDEX] = 5.5*interval+newSpeed;
+				scrollCenterSlowing = false;
+				
+			}else{
+				scrollPercents[INDEX] = SCROLL;
+			}
+		}else if(SCROLL<7.5*interval){
+			if(SCROLL > 7.5*interval-newSpeed - 1){
+				scrollPercents[INDEX] = 7.5*interval+newSpeed;
+				scrollCenterSlowing = false;
+				
+			}else{
+				scrollPercents[INDEX] = SCROLL;
+			}
+			
+		}else if(SCROLL<9.5*interval){
+			if(SCROLL > 9.5*interval-newSpeed - 1){
+				scrollPercents[INDEX] = 9.5*interval+newSpeed;
+				scrollCenterSlowing = false;
+				
+			}else{
+				scrollPercents[INDEX] = SCROLL;
+			}
+			
+		}else{
+			scrollPercents[INDEX] = SCROLL;
+			
+		}
+	}else{
+		scrollPercents[INDEX]=(scrollPercents[INDEX]+newSpeed)%scrollMax[INDEX];
+	}
+	html.style.setProperty("--scroll-y-two",`${scrollPercents[INDEX]}px`);
+}
+
+function doGoalieGearSlow()
+{
+	const INDEX = GEAR_INDEX;
+	tickCounter[INDEX]+=1;
+		
+	let newSpeed = speed - decay*tickCounter[INDEX];
+	if(newSpeed<1){
+		newSpeed=1;
+		const SCROLL=(scrollPercents[INDEX]+newSpeed)%scrollMax[INDEX];
+		
+		// compute nearest;
+		let interval = scrollMax[INDEX]/8;
+		if(SCROLL<1.5*interval){
+			// first guy idk
+			if(SCROLL > 1.5*interval-newSpeed - 1){
+				scrollPercents[INDEX] = 1.5*interval+newSpeed;
+				scrollCenterSlowing = false;
+			}else{
+				scrollPercents[INDEX] = SCROLL;
+			}
+		}else if(SCROLL<3.5*interval){
+			// second guy idk
+			if(SCROLL > 3.5*interval-newSpeed - 1){
+				scrollPercents[INDEX] = 3.5*interval+newSpeed;
+				scrollCenterSlowing = false;
+				
+			}else{
+				scrollPercents[INDEX] = SCROLL;
+			}
+		}else if(SCROLL<5.5*interval){
+			// third guy idk
+			if(SCROLL > 5.5*interval-newSpeed - 1){
+				scrollPercents[INDEX] = 5.5*interval+newSpeed;
+				scrollCenterSlowing = false;
+				
+			}else{
+				scrollPercents[INDEX] = SCROLL;
+			}
+		}else if(SCROLL<7.5*interval){
+			if(SCROLL > 7.5*interval-newSpeed - 1){
+				scrollPercents[INDEX] = 7.5*interval+newSpeed;
+				scrollCenterSlowing = false;
+				
+			}else{
+				scrollPercents[INDEX] = SCROLL;
+			}
+			
+		}else{
+			scrollPercents[INDEX] = SCROLL;
+			
+		}
+	}else{
+		scrollPercents[INDEX]=(scrollPercents[INDEX]+newSpeed)%scrollMax[INDEX];
+	}
+	html.style.setProperty("--scroll-y-two",`${scrollPercents[INDEX]}px`);
+}
+function doAwakeSlow()
+{
+	const INDEX = AWAKE_INDEX;
+	tickCounter[INDEX]+=1;
+		
+	let newSpeed = speeds[INDEX] - decay*tickCounter[INDEX];
+	if(newSpeed<1){
+		newSpeed=1;
+		const SCROLL=(scrollPercents[INDEX]+newSpeed)%scrollMax[INDEX];
+		
+		// compute nearest;
+		let interval = scrollMax[INDEX]/4;
+		if(SCROLL<1.5*interval){
+			// first guy idk
+			if(SCROLL > 1.5*interval-newSpeed - decay){
+				scrollPercents[INDEX] = 1.5*interval+newSpeed+5;
+				scrollRightSlowing = false;
+			}else{
+				scrollPercents[INDEX] = SCROLL;
+			}
+		}else if(SCROLL<3.5*interval){
+			// second guy idk
+			if(SCROLL > 3.5*interval-newSpeed - decay){
+				scrollPercents[INDEX] = 3.5*interval+newSpeed+5;
+				scrollRightSlowing = false;
+				
+			}else{
+				scrollPercents[INDEX] = SCROLL;
+			}
+		}else{
+			scrollPercents[INDEX] = SCROLL;
+			
+		}
+	}else{
+		scrollPercents[INDEX]=(scrollPercents[INDEX]+newSpeed)%scrollMax[INDEX];
+	}
+	html.style.setProperty("--scroll-y-three",`${scrollPercents[INDEX]}px`);
+	if(!scrollRightSlowing)
+	{
+		doReset();
+	}
+}
+
+function doCharSlow()
+{
+	const INDEX = CHAR_INDEX;
+	tickCounter[INDEX]+=1;
+		
+	let newSpeed = speeds[INDEX] - decay*tickCounter[INDEX];
+	if(newSpeed<1){
+		newSpeed=1;
+		const SCROLL=(scrollPercents[INDEX]+newSpeed)%scrollMax[INDEX];
+		
+		// compute nearest;
+		let interval = scrollMax[INDEX]/44;
+		for(let i =0;i<=44;i+=2){
+			const intervalMod = 1.5+i;
+			if(SCROLL < (intervalMod)*interval){
+				if(SCROLL > (intervalMod)*interval-newSpeed-1){
+					scrollPercents[INDEX] = intervalMod*interval+newSpeed;
+					scrollLeftSlowing = false;
+				}else{
+					scrollPercents[INDEX] = SCROLL;
+				}
+				break;
+			}
+		}
+		
+	}else{
+		scrollPercents[INDEX]=(scrollPercents[INDEX]+newSpeed)%scrollMax[INDEX];
+	}
+	html.style.setProperty("--scroll-y-one",`${scrollPercents[INDEX]}px`);
+}
+function tick()
+{
+	if(scrollLeft){
+		scrollPercents[CHAR_INDEX]=(scrollPercents[CHAR_INDEX]+speeds[CHAR_INDEX])%scrollMax[CHAR_INDEX];
+		
+		html.style.setProperty("--scroll-y-one",`${scrollPercents[CHAR_INDEX]}px`);
+	}else if(scrollLeftSlowing){
+		doCharSlow();
+	}
+	if(scrollCenter){
+		scrollPercents[GEAR_INDEX]=(scrollPercents[GEAR_INDEX]+speed)%scrollMax[GEAR_INDEX];
+		
+		html.style.setProperty("--scroll-y-two",`${scrollPercents[GEAR_INDEX]}px`);
+	}else if(scrollCenterSlowing){
+	// goalie;
+		if(isGoalie){
+			doGoalieGearSlow()
+		}else{
+			doForwardGearSlow()
+		}
+	}
+	if(scrollRight){
+		scrollPercents[AWAKE_INDEX]=(scrollPercents[AWAKE_INDEX]+speeds[AWAKE_INDEX])%scrollMax[AWAKE_INDEX];
+		
+		html.style.setProperty("--scroll-y-three",`${scrollPercents[AWAKE_INDEX]}px`);
+	}else if(scrollRightSlowing){
+	// goalie;
+		doAwakeSlow()
+	}
+}
+
+const GOButton = document.querySelector("#opts button")
+
+function GO()
+{
+	scrollLeft=true;
+	scrollLeftSlowing=true;
+	scrollCenter=true;
+	scrollCenterSlowing=true;
+	scrollRight=true;
+	scrollRightSlowing=true;
+	GOButton.setAttribute("disabled",true);
+	setTimeout(()=>{
+		let first = 1000;
+		let second = first*2+Math.random()*first+1500;
+		let third = second+Math.random()*first+1000;
+		setTimeout(()=>{
+			scrollLeft=false;
+		},first)
+		setTimeout(()=>{
+			scrollCenter=false;
+		},second)
+		setTimeout(()=>{
+			scrollRight=false;
+		},third)
+	},Math.random()*500+500)
+}
+setInterval(tick,8)
+</script>
+</body>
+
+</html>
