@@ -18,7 +18,7 @@ Note, there is no remote access control options available.  You have to click th
 
 # Adding as a browser source in OBS
 1. Create browser source
-2. In the source enter `http://127.0.0.1:8080/slots.html?stream&goalie` or `http://127.0.0.1:8080/slots.html?stream&forward` if you want to roll forward gear options instead.  **Note: after connecting the source you may type "goalie" or "forward" into the terminal to swap to goalie or forward gear options.
+2. In the source enter `http://127.0.0.1:8080/slots.html?stream&goalie` or `http://127.0.0.1:8080/slots.html?stream&forward` if you want to roll forward gear options instead.  **Note: after connecting the source you may type "goalie" or "forward" into the terminal to swap to goalie or forward gear options.**
 3. Set the width to 915 and the height to 515.  Feel free to increase these if you want a little padding on the sides, but this is the minimum size.
 4. Now you can position the browser source as you'd like.
 
